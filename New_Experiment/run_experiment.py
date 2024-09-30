@@ -71,5 +71,5 @@ K = 3
 S_prime = S * 2
 A = 2
 T = 10
-num_simulations = 5
+num_simulations = 100000
 comparison(S, N, group_member_num, K, S_prime, A, T, num_simulations, 'General')
