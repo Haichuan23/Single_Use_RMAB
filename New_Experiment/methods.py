@@ -47,7 +47,7 @@ def fluid_policy(N, T, S, S_prime, A, K, group_member_num, P, r, num_simulations
     for t in range(T):
         constraints.append(cp.sum([mu[mu_index(n, s, 1, t)]
                                for n in range(N)
-                               for s in range(S_prime)]) <= K)
+                               for s in range(S_prime)]) <= K/group_member_num)
 
     # Flow constraints for occupancy measure
     for n in range(N):
@@ -431,9 +431,9 @@ def finite_whittle_policy(N, T, S, S_prime, A, K, group_member_num, P, r, num_si
             # Change the state for activated arms
             for arm in activated_arms:
                 type, mem, current_state, _ = arm
-                if current_state >= S:  # Dummy states are indexed after normal states
-                    next_state = np.random.choice(range(S_prime), p=P[type, current_state, 1, :])
-                    arm_states[type][mem] = next_state
+                #if current_state >= S:  # Dummy states are indexed after normal states
+                next_state = np.random.choice(range(S_prime), p=P[type, current_state, 1, :])
+                arm_states[type][mem] = next_state
         
             for type in range(N):
                 for mem in range(group_member_num):
@@ -564,9 +564,9 @@ def calculate_whittle_index_with_dp_binary_search(rewards, transition_probabilit
 
             # adjust lambda
             if Q_s_1[state] > Q_s_0[state]:
-                lambda_low = lambda_value  # 调整下界
+                lambda_low = lambda_value  # lower bound
             else:
-                lambda_high = lambda_value  # 调整上界
+                lambda_high = lambda_value  # upper bound
 
             iteration += 1
 
@@ -643,9 +643,9 @@ def infinite_whittle_policy(N, T, S, S_prime, A, K, group_member_num, P, r, num_
             # Change the state for activated arms
             for arm in activated_arms:
                 type, mem, current_state, _ = arm
-                if current_state >= S:  # Dummy states are indexed after normal states
-                    next_state = np.random.choice(range(S_prime), p=P[type, current_state, 1, :])
-                    arm_states[type][mem] = next_state
+                #if current_state >= S:  # Dummy states are indexed after normal states
+                next_state = np.random.choice(range(S_prime), p=P[type, current_state, 1, :])
+                arm_states[type][mem] = next_state
         
             for type in range(N):
                 for mem in range(group_member_num):
