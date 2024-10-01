@@ -105,7 +105,7 @@ def fluid_policy(N, T, S, S_prime, A, K, group_member_num, P, r, num_simulations
                     current_state = arm_states[type][mem]
                     mu_1 = optimal_mu_4D[type, current_state, 1, t]
                     mu_0 = optimal_mu_4D[type, current_state, 0, t]
-                    index_value = (10-current_state) * mu_1 / (mu_1 + mu_0) if (mu_1 + mu_0) > 0 else -10000
+                    index_value = (S-current_state) * mu_1 / (mu_1 + mu_0) if (mu_1 + mu_0) > 0 else -10000
                     current_indices.append((type, mem, current_state, index_value))
 
             current_indices.sort(key=lambda x: x[3], reverse=True)
