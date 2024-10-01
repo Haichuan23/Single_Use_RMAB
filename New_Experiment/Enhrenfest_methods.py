@@ -2,38 +2,6 @@ import cvxpy as cp
 import numpy as np
 
 
-### We consider an Ehrenfest project 
-### State space: x = 0, 1, 2, ... , K
-### The reward rate is cx in the active phase, 0 in the passive phase
-### In the active phase, x -> x-1 with intensity mu \cdot x
-### In the passive phase, x -> x+1 with intensity lambda \cdot (K-x)
-
-'''
-The formula for whittle index is:
-v(x) = (c / (mu * K)) * (mu * (x ** 2) - lambda * ((K - x) ** 2))
-'''
-def calculate_whittle_index(current_state_lst, n_state, mu_lst, lambda_lst, potential_reward_lst, one_pull_mask_lst):
-    num_arms = len(current_state_lst)
-    whittle_lst = [0] * num_arms
-
-    assert len(mu_lst) == len(lambda_lst) == len(potential_reward_lst) == len(one_pull_mask_lst) == num_arms, \
-    "List lengths or number of arms do not match"
-
-    for i in range(num_arms):
-        cur_x = current_state_lst[i]  ## The state of the ith arm
-        cur_mu = mu_lst[i]
-        cur_lambda = lambda_lst[i]
-        potential_reward = potential_reward_lst[i]
-        K = n_state - 1
-      
-        if (one_pull_mask_lst[i] == 0):
-            cur_whittle = 0
-        else:
-            cur_whittle = (potential_reward / (cur_mu * K)) * (cur_mu * (cur_x ** 2) - cur_lambda * ((K - cur_x) ** 2))
-        whittle_lst[i] = cur_whittle
-
-    return whittle_lst
-
 '''
     Activated_arms are a list of tuple elements: (type, mem, current_state, index_value)
     Now I want to extract only the first two elements: (type, mem), so that I can identify 
@@ -43,8 +11,6 @@ def extract_activated_arms(activated_arms):
     # Use list comprehension to extract the first element from each tuple
     arms = [(t[0], t[1]) for t in activated_arms]
     return arms
-
-
 
 ## =================================================== fluid algorithm ===========================================================
 
@@ -103,7 +69,6 @@ def fluid_policy(N, T, S, S_prime, A, K, group_member_num, P, \
                                 for n in range(N)
                                 for s in range(S_prime)]) <= K/group_member_num)
         
-
     # Flow constraints for occupancy measure
     for n in range(N):
         for t in range(1, T):
@@ -113,7 +78,6 @@ def fluid_policy(N, T, S, S_prime, A, K, group_member_num, P, \
                                         for s_prime in range(S_prime)
                                         for a_prime in range(A)]))
                 
-
     # Initial distribution constraint (assuming uniform distribution here)
     for n in range(N):
         for s in range(S):
@@ -161,7 +125,11 @@ def fluid_policy(N, T, S, S_prime, A, K, group_member_num, P, \
                     current_state = arm_states[type][mem]
                     mu_1 = optimal_mu_4D[type, current_state, 1, t]
                     mu_0 = optimal_mu_4D[type, current_state, 0, t]
-                    index_value = (potential_reward_lst[type] * time_step) * mu_1 / (mu_1 + mu_0) if (mu_1 + mu_0) > 0 else -10000
+
+                    if (current_state >= S):
+                        index_value = (potential_reward_lst[type] * time_step * (current_state - S))  * mu_1 / (mu_1 + mu_0) if (mu_1 + mu_0) > 0 else -10000
+                    else:
+                        index_value = (potential_reward_lst[type] * time_step * current_state)  * mu_1 / (mu_1 + mu_0) if (mu_1 + mu_0) > 0 else -10000
                     current_indices.append((type, mem, current_state, index_value))
 
             current_indices.sort(key=lambda x: x[3], reverse=True)
@@ -172,7 +140,7 @@ def fluid_policy(N, T, S, S_prime, A, K, group_member_num, P, \
             for arm in activated_arm_lst:
                 type, mem = arm
                 current_state = arm_states[type][mem]
-                if (current_state > S):
+                if (current_state >= S):
                     ## In the extended state space
                     lp_total_reward += potential_reward_lst[type] * (current_state - S) * time_step
                 else:
@@ -181,8 +149,6 @@ def fluid_policy(N, T, S, S_prime, A, K, group_member_num, P, \
             
             for arm in activated_arms:
                 type, mem, current_state, _ = arm
-                # if (current_state >= S):
-                #     lp_pulls_in_dummy_states += 1
                 next_state = np.random.choice(range(S_prime), p=P[type, current_state, 1, :])
                 arm_states[type][mem] = next_state
         
@@ -205,8 +171,6 @@ def fluid_policy(N, T, S, S_prime, A, K, group_member_num, P, \
 
 
 ## ======================================================= Random Policy Benchmark ======================================================
-
-
 def draw_non_zero_indices(arr, num_samples):
     non_zero_indices = np.where(arr != 0)[0]
     
@@ -277,7 +241,7 @@ def random_policy(N, T, S, S_prime, A, K, group_member_num, P, \
             
             for arm in activated_arms:
                 type, mem, current_state = arm
-                if (current_state > S):
+                if (current_state >= S):
                     ## In the extended state space
                     random_total_reward += potential_reward_lst[type] * (current_state - S) * time_step
                 else:
@@ -287,8 +251,6 @@ def random_policy(N, T, S, S_prime, A, K, group_member_num, P, \
             for arm in activated_arms:
                 type, mem, current_state = arm
                 current_state = arm_states[type][mem]
-                if current_state >= S:  # Dummy states are indexed after normal states
-                    random_pulls_in_dummy_states += 1
                 # Move to the next state based on the transition probability for action 1
                 next_state = np.random.choice(range(S_prime), p=P[type, current_state, 1, :])
                 arm_states[type][mem] = next_state  # Update the arm's state
