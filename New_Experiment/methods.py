@@ -141,6 +141,16 @@ def fluid_policy(N, T, S, S_prime, A, K, group_member_num, P, r, num_simulations
     return optimal_reward, average_reward, fluid_std
 
 
+def draw_non_zero_indices(arr, num_samples):
+    #print(f"length of arr is {len(arr)}, number of sample is {num_samples}")
+    # Find the indices where the array values are not 0
+    non_zero_indices = np.where(arr != 0)[0]
+    
+    # Randomly select 'num_samples' indices from the non-zero indices
+    selected_indices = np.random.choice(non_zero_indices, size=num_samples, replace=False)
+    
+    return selected_indices
+
 '''
     Calculate the reward for the random policy
 
@@ -170,6 +180,8 @@ def random_policy(N, T, S, S_prime, A, K, group_member_num, P, r, num_simulation
     for sim in range(num_simulations):
         # Initialize the total reward for this simulation
         random_total_reward = 0 
+       
+        activation_mask = np.ones(num_arms)
 
         arm_states = {}
         for type in range(N):
@@ -178,7 +190,8 @@ def random_policy(N, T, S, S_prime, A, K, group_member_num, P, r, num_simulation
         # Simulate the process for the entire time horizon T
         for t in range(T):
             # Random policy: randomly select K arms to activate
-            random_arms = np.random.choice(range(num_arms), K, replace=False)
+            # random_arms = np.random.choice(range(num_arms), K, replace=False)
+            random_arms = draw_non_zero_indices(activation_mask, K)
             activated_arms = []
 
             for ele in random_arms:
@@ -186,6 +199,7 @@ def random_policy(N, T, S, S_prime, A, K, group_member_num, P, r, num_simulation
                 current_state = arm_states[type][mem]
                 arm = (type, mem, current_state)
                 activated_arms.append(arm)
+                activation_mask[ele] = 0
                 
             # Collect rewards for random policy for all arms before they transition
             for type in range(N):
@@ -662,6 +676,94 @@ def infinite_whittle_policy(N, T, S, S_prime, A, K, group_member_num, P, r, num_
     general_whittle_std = np.std(general_whittle_total_rewards, ddof=1)
     print(f"Average total achieved value over {num_simulations} simulations (General Infinite Whittle index policy): {average_general_whittle_total_reward}, stdev is {general_whittle_std}")
     return average_general_whittle_total_reward, general_whittle_std
+
+
+''' 
+    Calculate the reward for original whittle policy (with one pull constraint)
+
+    Input:
+        - N: number of groups
+        - T: time horizon
+        - S: number of states
+        - A: number of actions
+        - K: budget in each round
+        - group_member_num: number of members within a group
+        - P: transition_probability_matrix
+        - r: an array of reward for each state
+        - num_simulations: number of simulations
+    
+    Output:
+        - average_original_whittle_total_reward : average reward for original whittle policy
+        - original_whittle_std: standard deviation for MC simulations
+
+'''
+
+def original_whittle_policy(N, T, S, A, K, group_member_num, P, r, num_simulations):
+    # Calculate Whittle index for normal states
+    original_whittle_indices = calculate_all_arm_whittle(N, r, P, S)
+
+    # Output the Whittle indices
+    print("Original Whittle Indices (including dummy states):")
+
+    original_whittle_total_rewards = []
+
+    for sim in range(num_simulations):
+        original_whittle_total_reward = 0
+
+        activation_mask = {}
+        for type in range(N):
+            activation_mask[type] = np.ones(group_member_num)
+
+        # Initialize the state of each arm in one of the normal states
+        arm_states = {}
+        for type in range(N):
+            arm_states[type] = np.random.choice(range(S), group_member_num, p=[1 / S] * S)
+
+        for t in range(T):
+            # Get the current Whittle index values for each arm at the current states
+            current_indices = []
+            for type in range(N):
+                for mem in range(group_member_num):
+                    current_state = arm_states[type][mem]
+                    if activation_mask[type][mem] == 0:
+                        whittle_index_value = -np.inf ## make sure that it will not be selected
+                    else:
+                        whittle_index_value = original_whittle_indices[type, current_state]
+                    current_indices.append((type, mem, current_state, whittle_index_value))
+
+            # Sort arms by their Whittle index values in descending order
+            current_indices.sort(key=lambda x: x[3], reverse=True)
+
+            # Select the top K arms to activate (i.e., pull)
+            activated_arms = current_indices[:K]
+
+            # Collect rewards for all arms before transition
+            for type in range(N):
+                for mem in range(group_member_num):
+                    original_whittle_total_reward += r[arm_states[type][mem]]  # Reward is based on the current state
+
+            # Change the state for activated arms
+            for arm in activated_arms:
+                type, mem, current_state, _ = arm
+                next_state = np.random.choice(range(S), p=P[type, current_state, 1, :])
+                arm_states[type][mem] = next_state
+                activation_mask[type][mem] = 0
+        
+            for type in range(N):
+                for mem in range(group_member_num):
+                    if (type, mem) not in [(arm[0], arm[1]) for arm in activated_arms]:
+                        current_state = arm_states[type][mem]
+                        next_state = np.random.choice(range(S), p=P[type, current_state, 0, :])
+                        arm_states[type][mem] = next_state
+        
+        # Store the total rewards for this simulation
+        original_whittle_total_rewards.append(original_whittle_total_reward)
+    
+    # Calculate the average total rewards for Whittle index policy
+    average_original_whittle_total_reward = np.mean(original_whittle_total_rewards)
+    original_whittle_std = np.std(original_whittle_total_rewards, ddof=1)
+    print(f"Average total achieved value over {num_simulations} simulations (General Infinite Whittle index policy): {average_original_whittle_total_reward}, stdev is {original_whittle_std}")
+    return average_original_whittle_total_reward, original_whittle_std
 
 
 def plot_methods_with_confidence(data, N, T, K, group_mem, num_simulations, type):
