@@ -68,7 +68,7 @@ def extract_activated_arms(activated_arms):
     
     Output:
         - optimal_reward: the theoretical upper bound
-        - lp_average_reward: the result of the fluid algorith
+        - lp_average_reward: the result of the fluid algorithm
 '''
 
 def fluid_policy(N, T, S, S_prime, A, K, group_member_num, P, \
@@ -238,8 +238,8 @@ def draw_non_zero_indices(arr, num_samples):
 
     
     Output:
-        - optimal_reward: the theoretical upper bound
-        - lp_average_reward: the result of the fluid algorith
+        - average_random_total_reward: result of the random policy
+        - random_std: standard deviation of random policy
 '''
 
 def random_policy(N, T, S, S_prime, A, K, group_member_num, P, \
@@ -274,15 +274,14 @@ def random_policy(N, T, S, S_prime, A, K, group_member_num, P, \
                 arm = (type, mem, current_state)
                 activated_arms.append(arm)
                 activation_mask[ele] = 0
-                
-            # Collect rewards for random policy for all arms before they transition
-            for type in range(N):
-                for mem in range(group_member_num):
-                    current_state = arm_states[type][mem]
-                    if (current_state > S):
-                        random_total_reward += potential_reward_lst[type] * (current_state - S) * time_step
-                    else:
-                        random_total_reward += potential_reward_lst[type] * current_state * time_step
+            
+            for arm in activated_arms:
+                type, mem, current_state = arm
+                if (current_state > S):
+                    ## In the extended state space
+                    random_total_reward += potential_reward_lst[type] * (current_state - S) * time_step
+                else:
+                    random_total_reward += potential_reward_lst[type] * current_state * time_step
 
             # Update states for random policy
             for arm in activated_arms:
