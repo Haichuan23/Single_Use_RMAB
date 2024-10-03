@@ -92,7 +92,6 @@ def fluid_policy(N, T, S, S_prime, A, K, group_member_num, P, r, num_simulations
     lp_pulls_in_dummy_states = 0
 
     for sim in range(num_simulations):
-        
         total_reward = 0
         arm_states = {}
         for type in range(N):
@@ -106,8 +105,10 @@ def fluid_policy(N, T, S, S_prime, A, K, group_member_num, P, r, num_simulations
                     current_state = arm_states[type][mem]
                     mu_1 = optimal_mu_4D[type, current_state, 1, t]
                     mu_0 = optimal_mu_4D[type, current_state, 0, t]
-                   
-                    index_value = r[current_state] * mu_1 / (mu_1 + mu_0) if (mu_1 + mu_0) > 0 else -10000
+                    index_value = (S - current_state) * mu_1 / (mu_1 + mu_0) if (mu_1 + mu_0) > 0 else -10000
+                    if (index_value < 0):
+                        index_value = 0
+                    #index_value = mu_1 / (mu_1 + mu_0) if (mu_1 + mu_0) > 0 else -10000
                     current_indices.append((type, mem, current_state, index_value))
 
             current_indices.sort(key=lambda x: x[3], reverse=True)
@@ -295,7 +296,7 @@ def no_pull_policy(N, T, S, S_prime, A, K, group_member_num, P, r, num_simulatio
 
 
 '''
-    Calculate the finite whittle_index
+    Calculate the Q difference method
 
     Input:
         - rewards: the reward list
@@ -304,19 +305,19 @@ def no_pull_policy(N, T, S, S_prime, A, K, group_member_num, P, r, num_simulatio
         - T: time horizon
 
     Output:
-        - finite_whittle_indices: a matrix of size [T, S]
-            finite_whittle_indices[t][s]: 
+        - Q_difference_indices: a matrix of size [T, S]
+            Q_difference_indices[t][s]: 
             given a group, its whittle index in state s at time t
 
 '''
-def finite_whittle_index(rewards, transition_probabilities, states, T):
+def Q_difference_index(rewards, transition_probabilities, states, T):
     #Initialize Q-values: Now indexed by both state and time
     Q_s_1 = {t: {s: 0 for s in states} for t in range(T+1)}  # Q(s,1) for action 1 at each time step
     Q_s_0 = {t: {s: 0 for s in states} for t in range(T+1)}  # Q(s,0) for action 0 at each time step
 
-    finite_whittle_indices = {t: {s: 0 for s in states} for t in range(T+1)}  # Q(s,1) for action 1 at each time step
+    Q_difference_indices = {t: {s: 0 for s in states} for t in range(T+1)}  # Q(s,1) for action 1 at each time step
     for s in states:
-        finite_whittle_indices[T][s] = 0
+        Q_difference_indices[T][s] = 0
         Q_s_1[T][s] = rewards[s]  # Final reward for action 1 (active)
         Q_s_0[T][s] = rewards[s]  # Final reward for action 0 (passive) with zero subsidity
 
@@ -337,9 +338,9 @@ def finite_whittle_index(rewards, transition_probabilities, states, T):
             )
             Q_s_0[t][s] = rewards[s] + future_reward_0
 
-            finite_whittle_indices[t][s] = Q_s_1[t][s] - Q_s_0[t][s]
+            Q_difference_indices[t][s] = Q_s_1[t][s] - Q_s_0[t][s]
 
-    return finite_whittle_indices
+    return Q_difference_indices
 
 """
     Transforms a dictionary with T keys and S values under each key into a T by S matrix.
@@ -365,7 +366,7 @@ def dict_to_matrix(dictionary):
     
     return matrix
 
-''' Calculate the finite whittle index for all types 
+''' Calculate the Q difference for all types 
     
     Input:
         - N: number of groups
@@ -375,21 +376,21 @@ def dict_to_matrix(dictionary):
         - T: number of horizon
 
     Output:
-        - finite_whittle_all_arm: a matrix of size (N, T, S)
-        finite_whittle_all_arm[n, t, s]:
+        - Q_difference_all_arm: a matrix of size (N, T, S)
+        Q_difference_all_arm[n, t, s]:
         for group n, the finite whittle index in state s at time t
 
 '''
-def calculate_all_arm_finite_whittle(N,rewards,transition_probabilities,S,T):
-    finite_whittle_all_arm = np.zeros((N,T + 1,S))
+def calculate_all_arm_Q_difference(N,rewards,transition_probabilities,S,T):
+    Q_difference_all_arm = np.zeros((N,T + 1,S))
     states = list(range(S))
     
     for arm in range(N):
-        finite_whittle_all_arm[arm]= dict_to_matrix(finite_whittle_index(rewards, transition_probabilities[arm], states, T))
-    return finite_whittle_all_arm
+        Q_difference_all_arm[arm]= dict_to_matrix(Q_difference_index(rewards, transition_probabilities[arm], states, T))
+    return Q_difference_all_arm
 
 ''' 
-    Calculate the reward for finite whittle policy
+    Calculate the reward for Q difference policy
 
     Input:
         - N: number of groups
@@ -404,21 +405,21 @@ def calculate_all_arm_finite_whittle(N,rewards,transition_probabilities,S,T):
         - num_simulations: number of simulations
     
     Output:
-        - average_general_finite_whittle_total_reward: average reward for finite whittle policy
+        - average_general_Q_difference_total_reward: average reward for Q difference policy
 
 '''
-def finite_whittle_policy(N, T, S, S_prime, A, K, group_member_num, P, r, num_simulations):
+def Q_difference_policy(N, T, S, S_prime, A, K, group_member_num, P, r, num_simulations):
     # Calculate Whittle index for normal states
-    general_finite_whittle_indices = calculate_all_arm_finite_whittle(N, r, P, S_prime, T)
+    general_Q_difference_indices = calculate_all_arm_Q_difference(N, r, P, S_prime, T)
 
     # Output the Whittle indices
-    print("Whittle Indices (including dummy states):")
+    print("Q difference (including dummy states):")
 
-    general_finite_whittle_total_rewards = []
+    general_Q_difference_total_rewards = []
     #general_whittle_pulls_in_dummy_states = 0
 
     for sim in range(num_simulations):
-        finite_whittle_total_reward = 0
+        Q_difference_reward = 0
         # Initialize the state of each arm in one of the normal states
         arm_states = {}
         for type in range(N):
@@ -430,8 +431,8 @@ def finite_whittle_policy(N, T, S, S_prime, A, K, group_member_num, P, r, num_si
             for type in range(N):
                 for mem in range(group_member_num):
                     current_state = arm_states[type][mem]
-                    whittle_index_value = general_finite_whittle_indices[type, t, current_state]
-                    current_indices.append((type, mem, current_state, whittle_index_value))
+                    Q_difference_value = general_Q_difference_indices[type, t, current_state]
+                    current_indices.append((type, mem, current_state, Q_difference_value))
 
             # Sort arms by their Whittle index values in descending order
             current_indices.sort(key=lambda x: x[3], reverse=True)
@@ -442,7 +443,7 @@ def finite_whittle_policy(N, T, S, S_prime, A, K, group_member_num, P, r, num_si
             # Collect rewards for all arms before transition
             for type in range(N):
                 for mem in range(group_member_num):
-                    finite_whittle_total_reward += r[arm_states[type][mem]]  # Reward is based on the current state
+                    Q_difference_reward += r[arm_states[type][mem]]  # Reward is based on the current state
 
             # Change the state for activated arms
             for arm in activated_arms:
@@ -459,13 +460,13 @@ def finite_whittle_policy(N, T, S, S_prime, A, K, group_member_num, P, r, num_si
                         arm_states[type][mem] = next_state
 
         # Store the total rewards for this simulation
-        general_finite_whittle_total_rewards.append(finite_whittle_total_reward)
+        general_Q_difference_total_rewards.append(Q_difference_reward)
 
     # Calculate the average total rewards for Whittle index policy
-    average_general_finite_whittle_total_reward = np.mean(general_finite_whittle_total_rewards)
-    finite_whittle_std = np.std(general_finite_whittle_total_rewards, ddof=1)
-    print(f"Average total achieved value over {num_simulations} simulations (General Finite Whittle index policy): {average_general_finite_whittle_total_reward}, stdev is {finite_whittle_std}")
-    return average_general_finite_whittle_total_reward, finite_whittle_std
+    average_general_Q_difference_total_rewards = np.mean(general_Q_difference_total_rewards)
+    Q_difference_std = np.std(general_Q_difference_total_rewards, ddof=1)
+    print(f"Average total achieved value over {num_simulations} simulations (General Q difference index policy): {average_general_Q_difference_total_rewards}, stdev is {Q_difference_std}")
+    return average_general_Q_difference_total_rewards,  Q_difference_std 
 
 
 
@@ -699,7 +700,6 @@ def infinite_whittle_policy(N, T, S, S_prime, A, K, group_member_num, P, r, num_
         - original_whittle_std: standard deviation for MC simulations
 
 '''
-
 def original_whittle_policy(N, T, S, A, K, group_member_num, P, r, num_simulations):
     # Calculate Whittle index for normal states
     original_whittle_indices = calculate_all_arm_whittle(N, r, P, S)
@@ -768,6 +768,186 @@ def original_whittle_policy(N, T, S, A, K, group_member_num, P, r, num_simulatio
     return average_original_whittle_total_reward, original_whittle_std
 
 
+
+'''
+    Calculate the finite version of the whittle index
+    Input:
+        - lambda_value: 
+        - states: a list of all the states 
+        - rewards: reward for each state
+        - transition_probabilities: matrix, P[s, a, next_s]
+        - t: the starting timestamp
+        - T: the time horizon
+
+    Output:
+        - Given the current lambda value, what is the finite Q value 
+            for each time step after t (including t)
+
+'''
+def finite_value_calculation(lambda_value, states, rewards, transition_probabilities, t, T):
+    ## Initialize the dictionaries, Q_s_1[t][s]: corresponding Q value
+    Q_s_1 = {}
+    Q_s_0 = {}
+
+    for time in range(t, T):
+        Q_s_1[time] = {state: 0 for state in states}
+        Q_s_0[time] = {state: 0 for state in states}
+
+    for time in range(T-1, t-1, -1):
+        for s in states:
+            if (time == T-1):
+                ## According to our formulation, the last time step you collect reward
+                ## is T-1
+                future_reward_1 = 0
+                future_reward_0 = 0
+            else:
+                ## If not at the last time step, collect reward according to 
+                ## transition probability
+                future_reward_1 = sum(
+                    transition_probabilities[s, 1, next_state] * max(Q_s_1[time+1][next_state], Q_s_0[time+1][next_state])
+                    for next_state in states
+                )
+
+                future_reward_0 = sum(
+                    transition_probabilities[s, 0, next_state] * max(Q_s_1[time+1][next_state], Q_s_0[time+1][next_state])
+                    for next_state in states
+                )
+           
+            Q_s_1[time][s] = rewards[s] + future_reward_1
+            Q_s_0[time][s] = rewards[s] + future_reward_0 + lambda_value
+    
+    return Q_s_1, Q_s_0
+
+# use binary search to find lambda, Note in the finite version, we need to find an index for each time step
+def calculate_finite_whittle_with_dp_binary_search(rewards, transition_probabilities, S, T, max_iterations=100,
+                                    delta=1e-6):
+
+    finite_whittle_indices = {}
+    for time in range(T):
+        finite_whittle_indices[time] = np.zeros(S)
+    states = list(range(S))
+
+
+    for t in range(T-1, -1, -1):
+        for state in states:
+            lambda_low = -100  # lower bound
+            lambda_high = 100  # upper bound
+            iteration = 0
+
+            while iteration < max_iterations:
+                
+                lambda_value = (lambda_low + lambda_high) / 2
+
+                # use dp to calculate Q(s, 1) and Q(s, 0)
+                Q_s_1, Q_s_0 = finite_value_calculation(lambda_value, states, rewards, transition_probabilities, t, T)
+                
+                # check if Q_s_1(t, s) = Q_s_0(t, s) 
+                if abs(Q_s_1[t][state] - Q_s_0[t][state]) < delta:
+                    break
+
+                # adjust lambda
+                if Q_s_1[t][state] > Q_s_0[t][state]:
+                    lambda_low = lambda_value  # lower bound
+                else:
+                    lambda_high = lambda_value  # upper bound
+
+                iteration += 1
+
+            finite_whittle_indices[t][state] = lambda_value
+
+    return finite_whittle_indices
+
+
+def calculate_all_arm_finite_whittle(N,rewards,transition_probabilities,S,T):
+    finite_whittle_all_arm = np.zeros((N,T,S))
+    
+    for arm in range(N):
+        finite_whittle_indices =  calculate_finite_whittle_with_dp_binary_search(rewards, transition_probabilities[arm], S, T)
+        ## convert the dictionary into a T by S matrix
+        finite_whittle_matrix = np.vstack(list(finite_whittle_indices.values()))
+        finite_whittle_all_arm[arm] = finite_whittle_matrix
+    return finite_whittle_all_arm
+
+
+''' 
+    Calculate the reward for finite whittle policy
+
+    Input:
+        - N: number of groups
+        - T: time horizon
+        - S: number of states
+        - S_prime: number of states + dummy states
+        - A: number of actions
+        - K: budget in each round
+        - group_member_num: number of members within a group
+        - P: transition_probability_matrix
+        - r: an array of reward for each state
+        - num_simulations: number of simulations
+    
+    Output:
+        - average_finite_whittle_total_reward: average reward for finite whittle policy
+
+'''
+def finite_whittle_policy(N, T, S, S_prime, A, K, group_member_num, P, r, num_simulations):
+    # Calculate Whittle index for normal states
+    general_finite_whittle_indices = calculate_all_arm_finite_whittle(N,r,P,S_prime,T)
+
+    # Output the Whittle indices
+    print("Finite whittle (including dummy states):")
+
+    general_finite_whittle_total_rewards = []
+    #general_whittle_pulls_in_dummy_states = 0
+
+    for sim in range(num_simulations):
+        finite_whittle_reward = 0
+        # Initialize the state of each arm in one of the normal states
+        arm_states = {}
+        for type in range(N):
+            arm_states[type] = np.random.choice(range(S), group_member_num, p=[1 / S] * S)
+
+        for t in range(T):
+            # Get the current Whittle index values for each arm at the current states
+            current_indices = []
+            for type in range(N):
+                for mem in range(group_member_num):
+                    current_state = arm_states[type][mem]
+                    finite_whittle_value = general_finite_whittle_indices[type, t, current_state]
+                    current_indices.append((type, mem, current_state, finite_whittle_value))
+
+            # Sort arms by their Whittle index values in descending order
+            current_indices.sort(key=lambda x: x[3], reverse=True)
+
+            # Select the top K arms to activate (i.e., pull)
+            activated_arms = current_indices[:K]
+
+            # Collect rewards for all arms before transition
+            for type in range(N):
+                for mem in range(group_member_num):
+                    finite_whittle_reward += r[arm_states[type][mem]]  # Reward is based on the current state
+
+            # Change the state for activated arms
+            for arm in activated_arms:
+                type, mem, current_state, _ = arm
+                #if current_state >= S:  # Dummy states are indexed after normal states
+                next_state = np.random.choice(range(S_prime), p=P[type, current_state, 1, :])
+                arm_states[type][mem] = next_state
+        
+            for type in range(N):
+                for mem in range(group_member_num):
+                    if (type, mem) not in [(arm[0], arm[1]) for arm in activated_arms]:
+                        current_state = arm_states[type][mem]
+                        next_state = np.random.choice(range(S_prime), p=P[type, current_state, 0, :])
+                        arm_states[type][mem] = next_state
+
+        # Store the total rewards for this simulation
+        general_finite_whittle_total_rewards.append(finite_whittle_reward)
+
+    # Calculate the average total rewards for Whittle index policy
+    average_general_finite_whittle_total_rewards = np.mean(general_finite_whittle_total_rewards)
+    finite_whittle_std = np.std(general_finite_whittle_total_rewards, ddof=1)
+    print(f"Average total achieved value over {num_simulations} simulations (General Finite Whittle index policy): {average_general_finite_whittle_total_rewards}, stdev is {finite_whittle_std}")
+    return average_general_finite_whittle_total_rewards, finite_whittle_std
+
 def plot_methods_with_confidence(data, N, T, K, group_mem, num_simulations, type):
     """
     Plot a bar chart where the x-axis represents different methods, the y-axis represents the values.
@@ -794,7 +974,7 @@ def plot_methods_with_confidence(data, N, T, K, group_mem, num_simulations, type
             errors.append(0)
 
     # Set up the colors for the bars
-    colors = ['red', 'green', 'blue', 'orange', 'purple', 'cyan']
+    colors = ['red', 'green', 'blue', 'orange', 'purple', 'cyan', 'yellow', 'pink', 'brown', 'gray', 'lime', 'magenta']
     if len(methods) > len(colors):
         colors *= (len(methods) // len(colors) + 1)  # Ensure there are enough colors
 
