@@ -948,7 +948,7 @@ def finite_whittle_policy(N, T, S, S_prime, A, K, group_member_num, P, r, num_si
     print(f"Average total achieved value over {num_simulations} simulations (General Finite Whittle index policy): {average_general_finite_whittle_total_rewards}, stdev is {finite_whittle_std}")
     return average_general_finite_whittle_total_rewards, finite_whittle_std
 
-def plot_methods_with_confidence(data, N, T, K, group_mem, num_simulations, type):
+def plot_methods_with_confidence(data, N, T, K, group_mem, num_simulations, type, lower_bound_method, show_error = False):
     """
     Plot a bar chart where the x-axis represents different methods, the y-axis represents the values.
     Error bars represent the 95% confidence interval calculated from the standard deviation, 
@@ -961,10 +961,17 @@ def plot_methods_with_confidence(data, N, T, K, group_mem, num_simulations, type
     values = []
     errors = []
 
+    for method, (value, std_dev) in data.items():
+        if (method == 'Optimal'):
+            upper_bound = value
+        if (method == lower_bound_method):
+            lower_bound = value
+           
     # Populate lists, skipping error for methods with None as standard deviation
     for method, (value, std_dev) in data.items():
         methods.append(method)
-        values.append(value)
+        adjust_value = (value - lower_bound) * (1/ (upper_bound-lower_bound))
+        values.append(adjust_value)
         if std_dev is not None:
             # Calculate the error if standard deviation is provided
             error = 1.96 * (std_dev / np.sqrt(num_simulations))
@@ -980,7 +987,11 @@ def plot_methods_with_confidence(data, N, T, K, group_mem, num_simulations, type
 
     # Create the bar chart
     plt.figure(figsize=(10, 6))
-    bars = plt.bar(methods, values, color=colors[:len(methods)], yerr=errors, capsize=5, error_kw={'elinewidth':1.5, 'ecolor':'black'})
+    if (show_error):
+        bars = plt.bar(methods, values, color=colors[:len(methods)], yerr=errors, capsize=5, error_kw={'elinewidth':1.5, 'ecolor':'black'})
+    else:
+        bars = plt.bar(methods, values, color=colors[:len(methods)], capsize=5)
+        
     
     # Adding titles and labels
     plt.title(f'N = {N}, T = {T}, B = {K}, group_size = {group_mem}, type = {type}')
