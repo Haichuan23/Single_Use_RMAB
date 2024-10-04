@@ -1,6 +1,7 @@
 import cvxpy as cp
 import numpy as np
 import matplotlib.pyplot as plt
+import time
 
 
 ### We consider an Ehrenfest project 
@@ -44,7 +45,7 @@ def extract_activated_arms(activated_arms):
 
 def fluid_policy(N, T, S, S_prime, A, K, group_member_num, P, \
                  num_simulations, potential_reward_lst, time_step):
-    
+    start_time=time.time()
     # Flatten the optimization variables
     mu = cp.Variable(N * S_prime * A * T, nonneg=True)
 
@@ -115,6 +116,9 @@ def fluid_policy(N, T, S, S_prime, A, K, group_member_num, P, \
     # Monte Carlo simulation using the new setting
     lp_total_rewards = []
     lp_pulls_in_dummy_states = 0
+    # Create a list to store running times
+    end_time=time.time()
+    running_time=end_time-start_time
 
     for sim in range(num_simulations):
         lp_total_reward = 0
@@ -171,8 +175,9 @@ def fluid_policy(N, T, S, S_prime, A, K, group_member_num, P, \
     print(f"Average total reward over {num_simulations} simulations: {lp_average_reward}, stdev is {fluid_std}")
     # Print counts of pulls in dummy states
     print(f"Number of pulls in dummy states (LP-based policy): {lp_pulls_in_dummy_states}")
+    print("Average Running Time: {:.5f} seconds".format(running_time))
 
-    return optimal_reward, lp_average_reward, fluid_std
+    return optimal_reward, lp_average_reward, fluid_std, running_time
 
 
 ## ======================================================= Random Policy Benchmark ======================================================
@@ -213,12 +218,15 @@ def draw_non_zero_indices(arr, num_samples):
 
 def random_policy(N, T, S, S_prime, A, K, group_member_num, P, \
                  num_simulations, potential_reward_lst, time_step):
+    start_time = time.time()  # Start time of the simulation
     random_total_rewards = []
     random_pulls_in_dummy_states = 0
 
     ## Total number of arms
     num_arms = N * group_member_num
-
+    # Create a list to store running times
+    end_time=time.time()
+    running_time=end_time-start_time
     # Monte Carlo simulations for random policy
     for sim in range(num_simulations):
         # Initialize the total reward for this simulation
@@ -278,7 +286,8 @@ def random_policy(N, T, S, S_prime, A, K, group_member_num, P, \
     random_std = np.std(random_total_rewards, ddof=1)
 
     print(f"Average total achieved value over {num_simulations} simulations (Random policy): {average_random_total_reward}, stdev is {random_std}")
-    return average_random_total_reward, random_std
+    print("Average Running Time: {:.5f} seconds".format(running_time))
+    return average_random_total_reward, random_std, running_time
         
 
 # '''
@@ -418,6 +427,7 @@ def calculate_all_arm_Q_difference(N,potential_reward_lst,transition_probabiliti
 '''
 def Q_difference_policy(N, T, S, S_prime, A, K, group_member_num, P, \
                  num_simulations, potential_reward_lst, time_step):
+    start_time=time.time()
     # Calculate Whittle index for normal states
     general_Q_difference_indices = calculate_all_arm_Q_difference(N, potential_reward_lst, P, S_prime,S, T,time_step)
 
@@ -426,6 +436,8 @@ def Q_difference_policy(N, T, S, S_prime, A, K, group_member_num, P, \
 
     general_Q_difference_total_rewards = []
     #general_whittle_pulls_in_dummy_states = 0
+    end_time=time.time()
+    running_time=end_time-start_time
 
     for sim in range(num_simulations):
         Q_difference_total_reward = 0
@@ -474,11 +486,13 @@ def Q_difference_policy(N, T, S, S_prime, A, K, group_member_num, P, \
         # Store the total rewards for this simulation
         general_Q_difference_total_rewards.append(Q_difference_total_reward)
 
+
     # Calculate the average total rewards for Whittle index policy
     average_general_Q_difference_total_reward = np.mean(general_Q_difference_total_rewards)
     Q_difference_std = np.std(general_Q_difference_total_rewards, ddof=1)
     print(f"Average total achieved value over {num_simulations} simulations (General Q difference index policy): {average_general_Q_difference_total_reward}, stdev is {Q_difference_std}")
-    return average_general_Q_difference_total_reward, Q_difference_std
+    print("Average Running Time: {:.5f} seconds".format(running_time))
+    return average_general_Q_difference_total_reward, Q_difference_std, running_time
 
 
 
@@ -539,7 +553,7 @@ Returns:
 
 
 # use binary search to find lambda
-def calculate_whittle_index_with_dp_binary_search(potential_reward,transition_probabilities,discount_factor,S,S_prime,time_step, max_iterations=10000,
+def calculate_whittle_index_with_dp_binary_search(potential_reward,transition_probabilities,discount_factor,S,S_prime,time_step, max_iterations=100,
                                     delta=1e-6):
 
     whittle_indices = np.zeros(S_prime)
@@ -604,6 +618,7 @@ def calculate_all_arm_whittle(N,potential_reward_lst,transition_probabilities,S_
 '''
 def infinite_whittle_policy(N, T,S, S_prime, A, K, group_member_num, P, \
                  num_simulations, potential_reward_lst, time_step):
+    start_time=time.time()
     # Calculate Whittle index for normal states
     general_whittle_indices = calculate_all_arm_whittle(N, potential_reward_lst, P, S_prime,S,time_step)
 
@@ -612,6 +627,8 @@ def infinite_whittle_policy(N, T,S, S_prime, A, K, group_member_num, P, \
 
     general_whittle_total_rewards = []
     #general_whittle_pulls_in_dummy_states = 0
+    end_time=time.time()
+    running_time=end_time-start_time
 
     for sim in range(num_simulations):
         whittle_total_reward = 0
@@ -664,7 +681,8 @@ def infinite_whittle_policy(N, T,S, S_prime, A, K, group_member_num, P, \
     average_general_whittle_total_reward = np.mean(general_whittle_total_rewards)
     general_whittle_std = np.std(general_whittle_total_rewards, ddof=1)
     print(f"Average total achieved value over {num_simulations} simulations (General Infinite Whittle index policy): {average_general_whittle_total_reward}, stdev is {general_whittle_std}")
-    return average_general_whittle_total_reward, general_whittle_std
+    print("Average Running Time: {:.5f} seconds".format(running_time))
+    return average_general_whittle_total_reward, general_whittle_std, running_time
 
 
 ''' 
@@ -689,6 +707,7 @@ def infinite_whittle_policy(N, T,S, S_prime, A, K, group_member_num, P, \
 
 def original_whittle_policy(N, T, S, A, K, group_member_num, P, \
                  num_simulations, potential_reward_lst, time_step):
+    start_time=time.time()
     # Calculate Whittle index for normal states
     original_whittle_indices = calculate_all_arm_whittle(N, potential_reward_lst, P, S,S,time_step)
 
@@ -696,6 +715,8 @@ def original_whittle_policy(N, T, S, A, K, group_member_num, P, \
     print("Original Whittle Indices (including dummy states):")
 
     original_whittle_total_rewards = []
+    end_time=time.time()
+    running_time=end_time-start_time
 
     for sim in range(num_simulations):
         original_whittle_total_reward = 0
@@ -756,7 +777,185 @@ def original_whittle_policy(N, T, S, A, K, group_member_num, P, \
     average_original_whittle_total_reward = np.mean(original_whittle_total_rewards)
     original_whittle_std = np.std(original_whittle_total_rewards, ddof=1)
     print(f"Average total achieved value over {num_simulations} simulations (General Infinite Whittle index policy): {average_original_whittle_total_reward}, stdev is {original_whittle_std}")
-    return average_original_whittle_total_reward, original_whittle_std
+    print("Average Running Time: {:.5f} seconds".format(running_time))
+    return average_original_whittle_total_reward, original_whittle_std, running_time
+
+
+
+def finite_value_calculation(lambda_value, S,states, potential_reward, transition_probabilities, t, T,time_step):
+    ## Initialize the dictionaries, Q_s_1[t][s]: corresponding Q value
+    Q_s_1 = {}
+    Q_s_0 = {}
+
+    for time in range(t, T):
+        Q_s_1[time] = {state: 0 for state in states}
+        Q_s_0[time] = {state: 0 for state in states}
+
+    for time in range(T-1, t-1, -1):
+        for s in states:
+            if (time == T-1):
+                ## According to our formulation, the last time step you collect reward
+                ## is T-1
+                future_reward_1 = 0
+                future_reward_0 = 0
+            else:
+                ## If not at the last time step, collect reward according to 
+                ## transition probability
+                future_reward_1 = sum(
+                    transition_probabilities[s, 1, next_state] * max(Q_s_1[time+1][next_state], Q_s_0[time+1][next_state])
+                    for next_state in states
+                )
+
+                future_reward_0 = sum(
+                    transition_probabilities[s, 0, next_state] * max(Q_s_1[time+1][next_state], Q_s_0[time+1][next_state])
+                    for next_state in states
+                )
+            if s>=S:
+                Q_s_1[time][s] = potential_reward*(s-S)*time_step + future_reward_1
+                Q_s_0[time][s]=lambda_value+future_reward_0
+            else:
+                Q_s_1[time][s] = potential_reward*s*time_step + future_reward_1
+                Q_s_0[time][s]=lambda_value+future_reward_0
+    
+    return Q_s_1, Q_s_0
+
+# use binary search to find lambda, Note in the finite version, we need to find an index for each time step
+def calculate_finite_whittle_with_dp_binary_search(potential_reward, transition_probabilities, S,S_prime, T,time_step, max_iterations=100,
+                                    delta=1e-6):
+
+    finite_whittle_indices = {}
+    for time in range(T):
+        finite_whittle_indices[time] = np.zeros(S_prime)
+    states = list(range(S_prime))
+
+    for t in range(T-1, -1, -1):
+        for state in states:
+            lambda_low = -100  # lower bound
+            lambda_high = 100  # upper bound
+            iteration = 0
+
+            while iteration < max_iterations:
+                
+                lambda_value = (lambda_low + lambda_high) / 2
+
+                # use dp to calculate Q(s, 1) and Q(s, 0)
+                Q_s_1, Q_s_0 = finite_value_calculation(lambda_value, S,states, potential_reward, transition_probabilities, t, T,time_step)
+                
+                # check if Q_s_1(t, s) = Q_s_0(t, s) 
+                if abs(Q_s_1[t][state] - Q_s_0[t][state]) < delta:
+                    break
+
+                # adjust lambda
+                if Q_s_1[t][state] > Q_s_0[t][state]:
+                    lambda_low = lambda_value  # lower bound
+                else:
+                    lambda_high = lambda_value  # upper bound
+
+                iteration += 1
+
+            finite_whittle_indices[t][state] = lambda_value
+
+    return finite_whittle_indices
+
+
+def calculate_all_arm_finite_whittle(N,potential_reward_lst,transition_probabilities,S_prime,S,T,time_step):
+    finite_whittle_all_arm = np.zeros((N,T,S_prime))
+    
+    for arm in range(N):
+        finite_whittle_indices =  calculate_finite_whittle_with_dp_binary_search(potential_reward_lst[arm], transition_probabilities[arm], S,S_prime, T,time_step)
+        ## convert the dictionary into a T by S matrix
+        finite_whittle_matrix = np.vstack(list(finite_whittle_indices.values()))
+        finite_whittle_all_arm[arm] = finite_whittle_matrix
+    return finite_whittle_all_arm
+
+
+''' 
+    Calculate the reward for finite whittle policy
+
+    Input:
+        - N: number of groups
+        - T: time horizon
+        - S: number of states
+        - S_prime: number of states + dummy states
+        - A: number of actions
+        - K: budget in each round
+        - group_member_num: number of members within a group
+        - P: transition_probability_matrix
+        - r: an array of reward for each state
+        - num_simulations: number of simulations
+    
+    Output:
+        - average_finite_whittle_total_reward: average reward for finite whittle policy
+
+'''
+def finite_whittle_policy(N, T, S, S_prime, A, K, group_member_num, P, \
+                 num_simulations, potential_reward_lst, time_step):
+    start_time=time.time()
+    # Calculate Whittle index for normal states
+    general_finite_whittle_indices = calculate_all_arm_finite_whittle(N,potential_reward_lst,P,S_prime,S,T,time_step)
+
+    # Output the Whittle indices
+    print("Finite whittle (including dummy states):")
+
+    general_finite_whittle_total_rewards = []
+    #general_whittle_pulls_in_dummy_states = 0
+    end_time=time.time()
+    running_time=end_time-start_time
+
+    for sim in range(num_simulations):
+        finite_whittle_reward = 0
+        # Initialize the state of each arm in one of the normal states
+        arm_states = {}
+        for type in range(N):
+            arm_states[type] = np.random.choice(range(S), group_member_num, p=[1 / S] * S)
+
+        for t in range(T):
+            # Get the current Whittle index values for each arm at the current states
+            current_indices = []
+            for type in range(N):
+                for mem in range(group_member_num):
+                    current_state = arm_states[type][mem]
+                    finite_whittle_value = general_finite_whittle_indices[type, t, current_state]
+                    current_indices.append((type, mem, current_state, finite_whittle_value))
+
+            # Sort arms by their Whittle index values in descending order
+            current_indices.sort(key=lambda x: x[3], reverse=True)
+
+            # Select the top K arms to activate (i.e., pull)
+            activated_arms = current_indices[:K]
+
+            # Collect rewards for all arms before transition
+            for arm in activated_arms:
+                type, mem, cur_state,_ = arm
+                if cur_state>=S:
+                    finite_whittle_reward += potential_reward_lst[type]*(cur_state-S)*time_step  # Reward is based on the current state
+                else:
+                    finite_whittle_reward += potential_reward_lst[type]*cur_state*time_step
+
+            # Change the state for activated arms
+            for arm in activated_arms:
+                type, mem, current_state, _ = arm
+                #if current_state >= S:  # Dummy states are indexed after normal states
+                next_state = np.random.choice(range(S_prime), p=P[type, current_state, 1, :])
+                arm_states[type][mem] = next_state
+        
+            for type in range(N):
+                for mem in range(group_member_num):
+                    if (type, mem) not in [(arm[0], arm[1]) for arm in activated_arms]:
+                        current_state = arm_states[type][mem]
+                        next_state = np.random.choice(range(S_prime), p=P[type, current_state, 0, :])
+                        arm_states[type][mem] = next_state
+
+        # Store the total rewards for this simulation
+        general_finite_whittle_total_rewards.append(finite_whittle_reward)
+
+    # Calculate the average total rewards for Whittle index policy
+    average_general_finite_whittle_total_rewards = np.mean(general_finite_whittle_total_rewards)
+    finite_whittle_std = np.std(general_finite_whittle_total_rewards, ddof=1)
+    print(f"Average total achieved value over {num_simulations} simulations (Finite Whittle index policy): {average_general_finite_whittle_total_rewards}, stdev is {finite_whittle_std}")
+    print("Average Running Time: {:.5f} seconds".format(running_time))
+    return average_general_finite_whittle_total_rewards, finite_whittle_std, running_time
+
 
 
 
@@ -818,3 +1017,23 @@ def plot_methods_with_confidence(data, N, T, K, group_mem, num_simulations, type
 
     plt.tight_layout()
     plt.savefig(f'N={N},T={T},B={K},group_size={group_mem},type={type}.png')
+
+def plot_running_time(running_time_dict, N, T, K, group_mem, type):
+    # Extract keys and values from the dictionary
+    keys = list(running_time_dict.keys())
+    values = list(running_time_dict.values())
+    
+    # Create the bar chart
+    plt.bar(keys, values, color='skyblue')
+    
+    # Add titles and labels
+    plt.title('Index Computation Running Time')
+    plt.xlabel('Methods')
+    plt.ylabel('Index Computation Running Time (s)')
+    
+    # Rotate x-axis labels for better visibility if needed
+    plt.xticks(rotation=45, ha='right')
+    
+    # Show the plot
+    plt.tight_layout()  # Adjust layout to prevent clipping
+    plt.savefig(f'RT_N={N},T={T},B={K},group_size={group_mem},type={type}.png')
