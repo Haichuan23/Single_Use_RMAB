@@ -1,0 +1,148 @@
+import numpy as np
+#from method_original import *
+from methods_GJ import *
+np.random.seed(22)
+# Generate transition matrices
+
+def generate_poisson_transition_matrix_with_dummy_states(num_arms, num_states, num_dummy_states):
+    # Initialize transition matrices
+    P = np.zeros((num_arms, num_states + num_dummy_states, 2, num_states + num_dummy_states))
+
+    for n in range(num_arms):
+        # Transitions within non-dummy states (s in S)
+        for s in range(num_states):
+            if s == 0:
+                # Boundary condition for state 0:
+                P[n, s, 1, s + num_dummy_states] = np.random.rand()  # Stay in state 0
+                P[n, s, 1, s + num_dummy_states + 1] = 1 - P[n, s, 1, s + num_dummy_states]  # Move to state 1
+            elif s == num_states - 1:
+                # Boundary condition for state 9 (last state):
+                P[n, s, 1, s + num_dummy_states - 1] = np.random.rand()  # Move to state 8
+                P[n, s, 1, s + num_dummy_states] = 1 - P[n, s, 1, s + num_dummy_states - 1]  # Stay in state 9
+            else:
+                # General case for non-boundary states
+                P[n, s, 1, s + num_dummy_states - 1] = np.random.rand()  # Move to s-1
+                P[n, s, 1, s + num_dummy_states + 1] = 1 - P[n, s, 1, s + num_dummy_states - 1]  # Move to s+1
+
+            # Action 0: No pull, move to s+1, unless it's the last state
+            if s < num_states - 1:
+                P[n, s, 0, s + 1] = 1.0  # Move to s+1 with probability 1
+            else:
+                P[n, s, 0, s] = 1.0  # Stay in state 9 if it's the last state
+
+        # Transitions within dummy states (s in S_a)
+        for s_a in range(num_states, num_states + num_dummy_states):
+            normal_state_index = s_a - num_states
+            # Copy transitions from the corresponding normal state for action 0 within dummy states
+            P[n, s_a, 0, num_states:num_states + num_dummy_states] = P[n, normal_state_index, 0, 0:num_states]
+            P[n, s_a, 1, num_states:num_states + num_dummy_states] = P[n, normal_state_index, 0, 0:num_states]
+
+    return P
+
+def generate_general_transition_matrix_with_dummy_states(num_arms, num_states, num_dummy_states):
+    # Initialize transition matrices
+    P = np.zeros((num_arms, num_states + num_dummy_states, 2, num_states + num_dummy_states))
+
+    for n in range(num_arms):
+        # Transitions within non-dummy states (s in S)
+        for s in range(num_states):
+            # Action 0: Transition within S
+            P[n, s, 0, :num_states] = np.random.dirichlet(np.ones(num_states))
+
+            # Action 1: Transition to a dummy state
+            P[n, s, 1, num_states:] = np.random.dirichlet(np.ones(num_dummy_states))
+
+        # Transitions within dummy states (s in S_a)
+        for s_a in range(num_states, num_states + num_dummy_states):
+            # Copy transitions from the corresponding normal state for action 0
+            normal_state_index = s_a - num_states
+            P[n, s_a, 0, num_states:num_states+num_dummy_states] = P[n, normal_state_index, 0, 0:num_states]
+            P[n, s_a, 1, num_states:num_states+num_dummy_states] = P[n, normal_state_index, 0, 0:num_states]  # Same for action 1
+
+    return P
+
+
+def extract_normal_state_transitions(P):
+    # Extract the number of arms and states
+    num_arms, total_states, _, _ = P.shape
+    num_states = total_states // 2  # Assuming dummy states follow normal states
+
+    # Create P_original to store transitions of normal states only
+    P_original = np.zeros((num_arms, num_states, 2, num_states))
+
+    for n in range(num_arms):
+        # Action 0: Transitions within normal states
+        P_original[n, :, 0, :] = P[n, 0:num_states, 0, 0:num_states]
+
+        # Action 1: Transitions to normal states from dummy states
+        P_original[n, :, 1, :] = P[n, 0:num_states, 1, num_states:2*num_states]
+
+    return P_original
+
+
+
+def comparison(S, N, group_member_num, K, S_prime, A, T, mdp_type, num_simulations = 2000):
+    # Define the reward function, from state 0 (reward 10) to state 9 (reward 1)
+    r = np.array(list(range(S, 0, -1)) + list(np.zeros(S)))  # Non-dummy and dummy states have the same rewards
+    # change here to generate different types of transition matrices
+    if (mdp_type == 'General'):
+        P = generate_general_transition_matrix_with_dummy_states(N, S, S)
+    elif (mdp_type == 'Poisson'):
+        P = generate_poisson_transition_matrix_with_dummy_states(N, S, S)
+    else:
+        print("Error")
+        return
+    P_original = extract_normal_state_transitions(P)
+    # print("P:", P)
+    # print("P_orginal:", P_original)
+
+
+
+    optimal_reward, fluid_reward, fluid_std, fluid_running_time = fluid_policy(N, T, S, S_prime, A, K, group_member_num, P, r, num_simulations)
+    random_reward, random_std, random_running_time = random_policy(N, T, S, S_prime, A, K, group_member_num, P, r, num_simulations)
+    #no_pull_reward, no_pull_std, no_pull_running_time =  no_pull_policy(N, T, S, S_prime, A, K, group_member_num, P, r, num_simulations)
+    Q_difference_reward, Q_difference_std, Q_difference_running_time =  Q_difference_policy(N, T, S, S_prime, A, K, group_member_num, P, r, num_simulations)
+    finite_whittle_reward, finite_whittle_std, finite_whittle_running_time = finite_whittle_policy(N, T, S, S_prime, A, K, group_member_num, P, r, num_simulations)
+    infinite_whittle_reward, infinite_whittle_std, infinite_whittle_running_time = infinite_whittle_policy(N, T, S, S_prime, A, K, group_member_num, P, r, num_simulations)
+    original_whittle_reward, original_whittle_std, original_whittle_running_time = original_whittle_policy(N, T, S, A, K, group_member_num, P_original, P, r, num_simulations)
+
+
+    experiment_synthetic_result = {
+        "Optimal": (optimal_reward, None),
+        "fluid": (fluid_reward, fluid_std),
+        "random": (random_reward, random_std),
+        "finite whittle": (finite_whittle_reward, finite_whittle_std),
+        "inifinite whittle": (infinite_whittle_reward, infinite_whittle_std),
+        "original whittle": (original_whittle_reward, original_whittle_std),
+        "Q_difference": (Q_difference_reward, Q_difference_std),
+        "no-pull": (0, 0)
+    }
+
+    experiment_running_time_result = {
+        'fluid': fluid_running_time,
+        'random': random_running_time,
+        'no-pull': 0,
+        "Q_difference": Q_difference_running_time,
+        "finite_whittle": finite_whittle_running_time,
+        "infinite_whittle": infinite_whittle_running_time,
+        "original_whittle": original_whittle_running_time
+    }
+
+
+    ## If you only collect reward when an arm is pulled,
+    ## change the lower_bound_method to "random"
+    plot_methods_with_confidence(experiment_synthetic_result, N, T, K, group_member_num, num_simulations, mdp_type, lower_bound_method="no-pull")
+    return experiment_synthetic_result, experiment_running_time_result
+
+
+
+S = 5
+N = 20
+group_member_num = 10
+K = 10
+S_prime = S * 2
+A = 2
+T = 10
+num_simulations = 100
+mdp_type = 'Poisson'
+test_result, running_time_result = comparison(S, N, group_member_num, K, S_prime, A, T, mdp_type, num_simulations)
